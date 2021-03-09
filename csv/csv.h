@@ -33,15 +33,39 @@ namespace a9 {
 
 		}
 
-		void save(const std::string& _path) {
-			close();
+		bool save(const std::string& _path) {
+			std::ofstream file(_path);
+			if (!file.is_open()) {
+				return false;
+			}
+
+			for (const auto& row : cells_) {
+				for (const auto& cell : row) {
+					file << cell << ',';
+				}
+				file << '\n';
+			}
+
+			file.close();
+			return true;
 		}
 
 		void clear() {
 			std::vector<std::vector<std::string>>().swap(cells_);
 		}
 
+		size_t rows()const {
+			return cells_.size();
+		}
+
+		size_t columns(size_t _row)const {
+			return cells_[_row].size();
+		}
+
 		void write(const std::string& _val) {
+			if (cells_.size() <= row_) {
+				cells_.push_back(std::vector<std::string>());
+			}
 			cells_[row_].push_back(_val);
 		}
 
@@ -56,6 +80,13 @@ namespace a9 {
 		template <class... Args>
 		void write_line(Args ..._line) {
 			write_line(std::forward<Args>(_line)...);
+			cells_.push_back(std::vector<std::string>());
+			row_ += 1;
+		}
+
+		void write_new_line() {
+			cells_.push_back(std::vector<std::string>());
+			row_ += 1;
 		}
 
 		std::vector<std::vector<std::string>> as_vector()const {
