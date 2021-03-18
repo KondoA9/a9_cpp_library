@@ -8,6 +8,7 @@
 #include <thread>
 #include <mutex>
 
+#include "../util/util.h"
 #include "../console/console.h"
 
 namespace a9 {
@@ -21,10 +22,27 @@ namespace a9 {
             rename
         };
 
-        namespace util {
-            [[nodiscard]] std::vector<std::string> remove_if(std::vector<std::string> _vector, std::function<bool(std::string)> _func) {
-                auto result = std::remove_if(_vector.begin(), _vector.end(), _func);
-                return std::vector<std::string>(_vector.begin(), result);
+        namespace _util {
+            std::string wstring2string(const std::wstring& wstr) {
+                const int buffer_size = WideCharToMultiByte(CP_OEMCP, 0, wstr.c_str(), -1, (char*)NULL, 0, NULL, NULL);
+                char* buffer = new char[buffer_size];
+
+                WideCharToMultiByte(CP_OEMCP, 0, wstr.c_str(), -1, buffer, buffer_size, NULL, NULL);
+
+                const std::string str(buffer, buffer + buffer_size - 1);
+
+                delete[] buffer;
+
+                return str;
+            }
+
+            std::string safe_path2string(const std::filesystem::path& _path) {
+                try {
+                    return _path.string();
+                }
+                catch (...) {
+                    return wstring2string(_path.wstring());
+                }
             }
         }
 
@@ -40,18 +58,40 @@ namespace a9 {
             return path.extension().string();
         }
 
+        // Get the file name includes extension
+        std::string get_filename(const std::string& _filepath) {
+            std::filesystem::path path = _filepath;
+            return path.filename().string();
+        }
+
         std::string get_parent_directory(const std::string& _path) {
             const std::filesystem::path path = _path;
             return path.parent_path().string();
         }
 
+        std::vector<std::string> get_directory_contents(const std::string& _directory_path, bool _recursive = false) {
+            std::vector<std::string> contents;
+            if (_recursive) {
+                for (const auto file : std::filesystem::recursive_directory_iterator(_directory_path)) {
+                    contents.push_back(_util:: safe_path2string(file.path()));
+                }
+            }
+            else {
+                for (const auto& file : std::filesystem::directory_iterator(_directory_path)) {
+                    contents.push_back(file.path().string());
+                }
+            }
+            return contents;
+        }
+
+        bool create_directory(const std::string& _path) {
+            const auto path = is_directory(_path) ? _path : get_parent_directory(_path);
+            return std::filesystem::create_directory(path);
+        }
+
         bool create_directories(const std::string& _path) {
             const auto path = is_directory(_path) ? _path : get_parent_directory(_path);
-            if (!std::filesystem::create_directories(path)) {
-                throw "Failed to create directories";
-                return false;
-            }
-            return true;
+            return std::filesystem::create_directories(path);
         }
 
         bool copy(const std::string& _from, const std::string& _to, copy_option _option) {
@@ -71,26 +111,7 @@ namespace a9 {
                 console::print(console::print_type::error, e.what());
                 return false;
             }
-            catch (const char* e) {
-                console::print(console::print_type::error, e);
-                return false;
-            }
             return true;
-        }
-
-        std::vector<std::string> get_directory_contents(const std::string& _directory_path, bool _recursive = false) {
-            std::vector<std::string> contents;
-            if (_recursive) {
-                for (const auto& file : std::filesystem::recursive_directory_iterator(_directory_path)) {
-                    contents.push_back(file.path().string());
-                }
-            }
-            else {
-                for (const auto& file : std::filesystem::directory_iterator(_directory_path)) {
-                    contents.push_back(file.path().string());
-                }
-            }
-            return contents;
         }
 
         bool rename_with(const std::vector<std::string>& _from, const std::vector<std::string>& _to, size_t _threads_count, copy_option _option, std::function<std::string(const std::string&, const std::string&)> _with_processing_func = nullptr) {
@@ -111,18 +132,25 @@ namespace a9 {
                 return false;
             }
 
-            size_t processed_count = 1;
+            size_t processed_count = 1, copied_count = 1;
 
             for (size_t i = 0; i < _threads_count; i++) {
-                threads.emplace_back([=, &processed_count, &mtx]() {
+                threads.emplace_back([=, &processed_count, &copied_count, &mtx]() {
                     const size_t start = i * interval;
                     const size_t end = (i == _threads_count - 1) ? from_count : (i + 1) * interval;
                     for (size_t j = start; j < end; j++) {
                         const std::string to_path = _with_processing_func == nullptr ? _to[j] : _with_processing_func(_from[j], _to[j]);
-                        copy(_from[j], to_path, _option);
+                        if (to_path.empty()) {
+                            continue;
+                        }
                         std::lock_guard<std::mutex> lock(mtx);
+                        if (copy(_from[j], to_path, _option)) {
+
+                        }
                         processed_count++;
-                        console::print(console::print_type::information, "processing: " + std::to_string(processed_count) + "/" + std::to_string(from_count));
+                        if (processed_count % 100 == 0) {
+                            console::print(console::print_type::information, "processing: " + std::to_string(processed_count) + "/" + std::to_string(from_count));
+                        }
                     }
                     });
             }
@@ -134,7 +162,7 @@ namespace a9 {
             return true;
         }
 
-        bool rename_with(const std::vector<std::string>& _from, size_t _threads_count, copy_option _option, std::function<std::string(const std::string&)> _make_to_path_func) {
+        bool rename_with(const std::vector<std::string>& _from, size_t _threads_count, copy_option _option, std::function<std::string(const std::string&)> _make_topath_func) {
             std::vector<std::thread> threads;
             std::mutex mtx;
 
@@ -151,18 +179,25 @@ namespace a9 {
                 return false;
             }
 
-            size_t processed_count = 1;
+            size_t processed_count = 1, copied_count = 1;
 
             for (size_t i = 0; i < _threads_count; i++) {
-                threads.emplace_back([=, &processed_count, &mtx]() {
+                threads.emplace_back([=, &processed_count, &copied_count, &mtx]() {
                     const size_t start = i * interval;
                     const size_t end = (i == _threads_count - 1) ? from_count : (i + 1) * interval;
                     for (size_t j = start; j < end; j++) {
-                        const std::string to_path = _make_to_path_func(_from[j]);
-                        copy(_from[j], to_path, _option);
+                        const std::string to_path = _make_topath_func(_from[j]);
+                        if (to_path.empty()) {
+                            continue;
+                        }
                         std::lock_guard<std::mutex> lock(mtx);
+                        if (copy(_from[j], to_path, _option)) {
+                            copied_count++;
+                        }
                         processed_count++;
-                        console::print(console::print_type::information, "processing: " + std::to_string(processed_count) + "/" + std::to_string(from_count));
+                        if (processed_count % 100 == 0) {
+                            console::print(console::print_type::information, "processing: " + std::to_string(processed_count) + "/" + std::to_string(from_count));
+                        }
                     }
                     });
             }
@@ -171,8 +206,9 @@ namespace a9 {
                 thread.join();
             }
 
+            console::print(console::print_type::information, "finish: " + std::to_string(copied_count) + "/" + std::to_string(from_count) + " files copied");
+
             return true;
         }
-
     }
 }
