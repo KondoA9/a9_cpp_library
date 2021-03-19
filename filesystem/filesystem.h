@@ -46,10 +46,6 @@ namespace a9 {
             }
         }
 
-        bool is_directory(const std::string& _filepath) {
-            return std::filesystem::is_directory(_filepath);
-        }
-
         std::string get_extension(const std::string& _filepath) {
             const std::filesystem::path path = _filepath;
             if (auto ext = path.extension().string(); ext.size() > 0) {
@@ -69,10 +65,10 @@ namespace a9 {
             return path.parent_path().string();
         }
 
-        std::vector<std::string> get_directory_contents(const std::string& _directory_path, bool _recursive = false) {
+        std::vector<std::string> get_directory_contents(const std::string& _directory_path, bool _recursive) {
             std::vector<std::string> contents;
             if (_recursive) {
-                for (const auto file : std::filesystem::recursive_directory_iterator(_directory_path)) {
+                for (const auto& file : std::filesystem::recursive_directory_iterator(_directory_path)) {
                     contents.push_back(_util:: safe_path2string(file.path()));
                 }
             }
@@ -82,6 +78,20 @@ namespace a9 {
                 }
             }
             return contents;
+        }
+
+        bool is_directory(const std::string& _filepath) {
+            return std::filesystem::is_directory(_filepath);
+        }
+
+        bool is_image(const std::string& _filepath) {
+            if (!is_directory(_filepath)) {
+                return false;
+            }
+
+            const std::vector<std::string> image_extensions{ "jpg", "png", "tiff", "bmp" };
+            const auto extension = get_extension(_filepath);
+            return std::any_of(image_extensions.begin(), image_extensions.end(), [extension](const std::string& ext) {return ext == extension; });
         }
 
         bool create_directory(const std::string& _path) {
@@ -132,24 +142,26 @@ namespace a9 {
                 return false;
             }
 
-            size_t processed_count = 1, copied_count = 1;
+            size_t processed_count = 0, copied_count = 0;
 
             for (size_t i = 0; i < _threads_count; i++) {
                 threads.emplace_back([=, &processed_count, &copied_count, &mtx]() {
                     const size_t start = i * interval;
                     const size_t end = (i == _threads_count - 1) ? from_count : (i + 1) * interval;
                     for (size_t j = start; j < end; j++) {
+                        processed_count++;
+                        if (processed_count % 100 == 0) {
+                            console::print(console::print_type::information, "processing: " + std::to_string(processed_count) + "/" + std::to_string(from_count));
+                        }
+
                         const std::string to_path = _with_processing_func == nullptr ? _to[j] : _with_processing_func(_from[j], _to[j]);
                         if (to_path.empty()) {
                             continue;
                         }
+
                         std::lock_guard<std::mutex> lock(mtx);
                         if (copy(_from[j], to_path, _option)) {
-
-                        }
-                        processed_count++;
-                        if (processed_count % 100 == 0) {
-                            console::print(console::print_type::information, "processing: " + std::to_string(processed_count) + "/" + std::to_string(from_count));
+                            copied_count++;
                         }
                     }
                     });
@@ -158,6 +170,8 @@ namespace a9 {
             for (auto& thread : threads) {
                 thread.join();
             }
+
+            console::print(console::print_type::information, "finish: " + std::to_string(copied_count) + "/" + std::to_string(from_count) + " files copied");
 
             return true;
         }
@@ -175,28 +189,30 @@ namespace a9 {
             const size_t interval = static_cast<size_t>(from_count / _threads_count);
 
             if (from_count == 0) {
-                console::print(console::print_type::error, "The size of \"from paths\" and \"to paths\" are not match");
+                console::print(console::print_type::error, "The from path is empty");
                 return false;
             }
 
-            size_t processed_count = 1, copied_count = 1;
+            size_t processed_count = 0, copied_count = 0;
 
             for (size_t i = 0; i < _threads_count; i++) {
                 threads.emplace_back([=, &processed_count, &copied_count, &mtx]() {
                     const size_t start = i * interval;
                     const size_t end = (i == _threads_count - 1) ? from_count : (i + 1) * interval;
                     for (size_t j = start; j < end; j++) {
+                        processed_count++;
+                        if (processed_count % 100 == 0) {
+                            console::print(console::print_type::information, "processing: " + std::to_string(processed_count) + "/" + std::to_string(from_count));
+                        }
+
                         const std::string to_path = _make_topath_func(_from[j]);
                         if (to_path.empty()) {
                             continue;
                         }
+
                         std::lock_guard<std::mutex> lock(mtx);
                         if (copy(_from[j], to_path, _option)) {
                             copied_count++;
-                        }
-                        processed_count++;
-                        if (processed_count % 100 == 0) {
-                            console::print(console::print_type::information, "processing: " + std::to_string(processed_count) + "/" + std::to_string(from_count));
                         }
                     }
                     });
