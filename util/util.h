@@ -3,8 +3,6 @@
 #include <vector>
 #include <string>
 
-#include <Windows.h>
-
 namespace a9 {
 	namespace util {
 		template<class T, class Func>

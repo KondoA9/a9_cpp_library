@@ -1,10 +1,10 @@
 #pragma once
 
+#include "../util/util.h"
+
 #include <fstream>
 #include <vector>
 #include <string>
-
-#include "../util/util.h"
 
 namespace a9 {
 	class csv {

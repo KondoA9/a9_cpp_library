@@ -1,11 +1,11 @@
 #pragma once
 
+#include "../filesystem/filesystem.h"
+
 #include <string>
 #include <vector>
 #include <fstream>
 #include <filesystem>
-
-#include "../filesystem/filesystem.h"
 
 namespace a9 {
 	namespace cache {

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "../util/util.h"
+#include "../console/console.h"
+
 #include <iostream>
 #include <filesystem>
 #include <functional>
@@ -8,8 +11,7 @@
 #include <thread>
 #include <mutex>
 
-#include "../util/util.h"
-#include "../console/console.h"
+#include <Windows.h>
 
 namespace a9 {
     namespace filesystem {
