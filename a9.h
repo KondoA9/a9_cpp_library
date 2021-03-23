@@ -4,6 +4,8 @@
 
 #include "filesystem/filesystem.h"
 
+#include "stopwatch/stopwatch.h"
+
 #include "csv/csv.h"
 
 #include "cache/cache.h"

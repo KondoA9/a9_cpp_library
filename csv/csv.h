@@ -106,7 +106,7 @@ namespace a9 {
 			if (!file.is_open()) {
 				return false;
 			}
-			
+
 			size_t header_count = 0;
 			std::string buf;
 			while (std::getline(file, buf)) {
