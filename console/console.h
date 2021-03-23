@@ -15,8 +15,12 @@ namespace a9 {
 
             void print_lines() {}
 
+            void print_lines(const std::string& _line) {
+                std::cout << "   " << _line << std::endl;
+            }
+
             template <class... Args>
-            void print_lines(const char* _line, Args... _lines) {
+            void print_lines(const std::string& _line, Args... _lines) {
                 std::cout << "   " << _line << std::endl;
 
                 print_lines(std::forward<Args>(_lines)...);
