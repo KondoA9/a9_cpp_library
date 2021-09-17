@@ -15,15 +15,19 @@ namespace a9 {
             std::vector<std::string> splitted_str;
             std::string item;
 
-            for (auto& s : _str) {
-                if (s == _delimiter) {
+            for (size_t i = 0; i < _str.size(); i++) {
+                if (_str[i] == _delimiter) {
                     if (!item.empty() || _push_empty) {
                         splitted_str.push_back(item);
                     }
                     item.clear();
                 }
                 else {
-                    item += s;
+                    item += _str[i];
+                }
+                
+                if(i == _str.size() - 1 && (!item.empty() || _push_empty)){
+                    splitted_str.push_back(item);
                 }
             }
 
