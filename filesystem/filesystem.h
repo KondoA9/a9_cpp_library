@@ -1,16 +1,16 @@
 #pragma once
 
-#include "../util/util.h"
-#include "../console/console.h"
+#include <Windows.h>
 
-#include <iostream>
 #include <filesystem>
-#include <vector>
+#include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
-#include <mutex>
+#include <vector>
 
-#include <Windows.h>
+#include "../console/console.h"
+#include "../util/util.h"
 
 namespace a9 {
     namespace filesystem {
@@ -26,7 +26,7 @@ namespace a9 {
         namespace _util {
             std::string wstring2string(const std::wstring& wstr) {
                 const int buffer_size = WideCharToMultiByte(CP_OEMCP, 0, wstr.c_str(), -1, (char*)NULL, 0, NULL, NULL);
-                char* buffer = new char[buffer_size];
+                char* buffer          = new char[buffer_size];
 
                 WideCharToMultiByte(CP_OEMCP, 0, wstr.c_str(), -1, buffer, buffer_size, NULL, NULL);
 
@@ -40,8 +40,7 @@ namespace a9 {
             std::string safe_path2string(const std::filesystem::path& _path) {
                 try {
                     return _path.string();
-                }
-                catch (...) {
+                } catch (...) {
                     return wstring2string(_path.wstring());
                 }
             }
@@ -70,10 +69,9 @@ namespace a9 {
             std::vector<std::string> contents;
             if (_recursive) {
                 for (const auto& file : std::filesystem::recursive_directory_iterator(_directory_path)) {
-                    contents.push_back(_util:: safe_path2string(file.path()));
+                    contents.push_back(_util::safe_path2string(file.path()));
                 }
-            }
-            else {
+            } else {
                 for (const auto& file : std::filesystem::directory_iterator(_directory_path)) {
                     contents.push_back(file.path().string());
                 }
@@ -86,13 +84,15 @@ namespace a9 {
         }
 
         bool is_image(const std::string& _filepath) {
-            if (!is_directory(_filepath)) {
+            if (is_directory(_filepath)) {
                 return false;
             }
 
-            const std::vector<std::string> image_extensions{ "jpg", "png", "tiff", "bmp", "gif" };
+            const std::vector<std::string> image_extensions{"jpg", "png", "tiff", "bmp", "gif"};
             const auto extension = get_extension(_filepath);
-            return std::any_of(image_extensions.begin(), image_extensions.end(), [extension](const std::string& ext) {return ext == extension; });
+            return std::any_of(image_extensions.begin(), image_extensions.end(), [extension](const std::string& ext) {
+                return ext == extension;
+            });
         }
 
         bool create_directory(const std::string& _path) {
@@ -108,8 +108,7 @@ namespace a9 {
         bool copy(const std::string& _from, const std::string& _to, copy_option _option) {
             try {
                 create_directories(_to);
-                switch (_option)
-                {
+                switch (_option) {
                 case a9::filesystem::copy_option::copy:
                     std::filesystem::copy(_from, _to);
                     break;
@@ -117,8 +116,7 @@ namespace a9 {
                     std::filesystem::rename(_from, _to);
                     break;
                 }
-            }
-            catch (std::filesystem::filesystem_error e) {
+            } catch (std::filesystem::filesystem_error e) {
                 console::print(console::print_type::error, e.what());
                 return false;
             }
